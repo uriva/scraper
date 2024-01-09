@@ -4,6 +4,7 @@ import {
   empty,
   equals,
   filter,
+  findInTree,
   head,
   identity,
   length,
@@ -11,31 +12,51 @@ import {
   pipe,
   reduce,
   replace,
-  trim,
-} from "npm:gamla";
+  trimWhitesapce,
+} from "gamla";
+
+import he from "npm:he";
 import { HTMLElement, NodeType, TextNode, parse } from "npm:node-html-parser";
 
-type JsonTreeNode = null | string | JsonTreeNode[];
+export type SimplifiedNode = null | string | SimplifiedNode[];
 
-const clean = replace(/\s+/g, " ");
+export const findInSimplifiedTree = (
+  predicate: (node: SimplifiedNode) => boolean,
+) =>
+  findInTree(predicate, (x: SimplifiedNode): SimplifiedNode[] =>
+    x instanceof Array ? x : [],
+  );
+
+const clean = pipe(he.decode, replace(/\s+/g, " "));
+const concatStrings = pipe(
+  reduce(
+    (s: string, x: SimplifiedNode) => clean(s) + " " + clean(x as string),
+    () => "",
+  ),
+  trimWhitesapce,
+);
 
 const handlers: [
-  (children: JsonTreeNode[]) => boolean,
-  (children: JsonTreeNode[]) => JsonTreeNode,
+  (children: SimplifiedNode[]) => boolean,
+  (children: SimplifiedNode[]) => SimplifiedNode,
 ][] = [
   [
-    (arr: JsonTreeNode[]) =>
+    (titleAndContent: SimplifiedNode[]) =>
+      titleAndContent?.length === 2 &&
+      titleAndContent?.every((x) => typeof x === "string") &&
+      (titleAndContent?.[1] as string).startsWith(":"),
+    concatStrings,
+  ],
+  [
+    (arr: SimplifiedNode[]) =>
       arr.every((x) => typeof x === "string") && arr.length > 2,
-    reduce(
-      (s: string, x: JsonTreeNode) => clean(s) + " " + clean(x as string),
-      () => "",
-    ),
+    concatStrings,
   ],
   [pipe(length, equals(1)), head],
-  [empty<JsonTreeNode>, always(null)],
+  [empty<SimplifiedNode>, always(null)],
   [
-    (x: JsonTreeNode) => typeof x === "string",
-    (x: JsonTreeNode) => (x as string).trim(),
+    (x: SimplifiedNode) => typeof x === "string",
+    (x: SimplifiedNode) => (x as string).trim(),
   ],
   [() => true, identity],
 ];
@@ -43,7 +64,7 @@ const handlers: [
 const isBadNode = (node: HTMLElement) =>
   ["SCRIPT", "STYLE", "NOSCRIPT"].includes(node.tagName);
 
-const convertToTreeNode = (node: TextNode | HTMLElement): JsonTreeNode =>
+const convertToTreeNode = (node: TextNode | HTMLElement): SimplifiedNode =>
   node.nodeType === NodeType.TEXT_NODE
     ? node.innerText.trim() && node.innerText.trim() !== "&nbsp;"
       ? clean(node.innerText.trim())
@@ -52,7 +73,7 @@ const convertToTreeNode = (node: TextNode | HTMLElement): JsonTreeNode =>
     ? null
     : pipe(
         map(convertToTreeNode),
-        filter((x: JsonTreeNode) => x),
+        filter((x: SimplifiedNode) => x),
         cond(handlers),
       )(node.childNodes as (TextNode | HTMLElement)[]);
 
