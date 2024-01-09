@@ -13,9 +13,9 @@ import {
   reduce,
   replace,
   trimWhitesapce,
-} from "gamla";
+} from "https://deno.land/x/gamla@39.0.0/src/index.ts";
 
-import he from "npm:he";
+import he from "npm:html-entities";
 import { HTMLElement, NodeType, TextNode, parse } from "npm:node-html-parser";
 
 export type SimplifiedNode = null | string | SimplifiedNode[];
