@@ -1,4 +1,4 @@
-import { complement, empty, filter, map, max, sideLog } from "gamla";
+import { complement, empty, filter, map, max } from "gamla";
 import {
   cond,
   equals,
@@ -155,8 +155,6 @@ export const mainList = reduceTree(
     const candidates: SimplifiedNode[][] = Array.isArray(current)
       ? [current, ...childrenCandidates]
       : childrenCandidates;
-    return empty(candidates)
-      ? null
-      : max(length<SimplifiedNode>)(sideLog(candidates));
+    return empty(candidates) ? null : max(length<SimplifiedNode>)(candidates);
   },
 );
