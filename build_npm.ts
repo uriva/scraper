@@ -10,9 +10,9 @@ await build({
   test: false,
   shims: { deno: true },
   mappings: {
-    "https://deno.land/x/gamla@39.0.0/src/index.ts": {
+    "https://deno.land/x/gamla@41.0.0/src/index.ts": {
       name: "gamla",
-      version: "^39.0.0",
+      version: "^41.0.0",
     },
   },
   package: {

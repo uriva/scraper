@@ -1,11 +1,11 @@
-import { equals, pipe, sideEffect, take } from "gamla";
+import { assertEquals } from "assert";
+import { equals, pipe, sideEffect } from "gamla";
 import {
   SimplifiedNode,
   findInSimplifiedTree,
   mainList,
   simplifyHtml,
 } from "./index.ts";
-import { assertEquals } from "assert";
 
 const writeToFile = <T>(obj: T) =>
   Deno.writeFileSync(
