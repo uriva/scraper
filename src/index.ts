@@ -1,4 +1,15 @@
-import { complement, empty, filter, map, max } from "gamla";
+import {
+  alljuxt,
+  allmap,
+  empty,
+  head,
+  intersectBy,
+  map,
+  max,
+  nonempty,
+  second,
+  trimWhitesapce,
+} from "gamla";
 import {
   cond,
   equals,
@@ -14,9 +25,15 @@ import {
 import he from "npm:html-entities";
 import { HTMLElement, Node, NodeType, parse } from "npm:node-html-parser";
 
-type AnnotatedText = Record<string, string>;
+export type SimplifiedNode =
+  | null
+  | string
+  | number
+  | boolean
+  | { [x: string]: SimplifiedNode }
+  | Array<SimplifiedNode>;
 
-const clean = pipe(he.decode, replace(/\s+/g, " "));
+const clean = pipe(he.decode, replace(/\s+/g, " "), trimWhitesapce);
 
 const concatStrings = pipe(
   reduce(
@@ -25,6 +42,10 @@ const concatStrings = pipe(
   ),
   trimWhitespace,
 );
+
+const isArray = Array.isArray;
+
+const isObject = (x: SimplifiedNode) => !isArray(x) && typeof x === "object";
 
 const isString = (x: SimplifiedNode): x is string => typeof x === "string";
 
@@ -39,98 +60,95 @@ const isBadNode = (node: Node) =>
 const detectTitle = (node: Node) =>
   isElement(node) && /h\d/i.test(node.tagName);
 
+const detectListItem = (node: Node) =>
+  isElement(node) && /(?:[uo])l/i.test(node.tagName);
+
 const current = (current: Node, _: SimplifiedNode[]) => current;
 
-const children = (_: Node, children: SimplifiedNode[]) => children;
-
-const unwrap = ([element]: SimplifiedNode[]) => element;
+const children = (_: Node, children: SimplifiedNode[]) =>
+  children.filter((x) => x && (!isArray(x) || nonempty(x)));
 
 type PredicateAndHandler = [
   (current: Node, children: SimplifiedNode[]) => boolean,
   (current: Node, children: SimplifiedNode[]) => SimplifiedNode,
 ];
 
-const isUrl = (x: string) =>
-  /^\w.*/.test(x) && /(www)|(https?)|(\.com)|\.org/.test(x) && /[^\s]+/.test(x);
-
-const textBasedAnnotation = (t: string): AnnotatedText | string =>
-  isUrl(t) ? { url: t } : t;
-
-const childrenHandlers: [
-  (children: SimplifiedNode[]) => null | boolean | string,
-  (children: SimplifiedNode[]) => SimplifiedNode,
-][] = [
-  [
-    (childs: SimplifiedNode[]) =>
-      childs.length === 2 &&
-      childs.every(isString) &&
-      (childs[0].endsWith(":") || childs[1].startsWith(":")),
-    concatStrings,
-  ],
-  [
-    (childs: SimplifiedNode[]) => childs.every(isString) && childs.length > 2,
-    pipe(concatStrings, textBasedAnnotation),
-  ],
-  [pipe(length<SimplifiedNode>, equals(1)), unwrap],
-  [empty<SimplifiedNode>, () => null],
-  [
-    ([x, y, z]: SimplifiedNode[]) =>
-      // @ts-expect-error too complex to infer
-      [x, y].every(complement(isString)) && x?.title && y?.url && isString(z),
-    // @ts-expect-error too complex to infer
-    ([x, y, z]: SimplifiedNode[]) => ({ ...x, ...y, paragraph: z }),
-  ],
-  [
-    () => true,
-    (x) => {
-      // console.log(`unrecognized ${JSON.stringify(x, null, 2)}`);
-      return x;
-    },
-  ],
-];
+const isSingleton = <T>(x: T[]) => x.length === 1;
 
 const handlers: PredicateAndHandler[] = [
   [pipe(current, isBadNode), () => null],
   [
     pipe(current, isTextNode),
-    pipe(current, ({ innerText }: Node) =>
-      innerText.trim() && innerText.trim() !== "&nbsp;"
-        ? textBasedAnnotation(clean(innerText.trim()))
-        : null,
+    pipe(current, ({ innerText }: Node) => clean(innerText)),
+  ],
+  [
+    pipe(current, detectListItem),
+    pipe(children, (children: SimplifiedNode[]) =>
+      isSingleton(children) ? [children[0]] : children,
     ),
   ],
   [
     pipe(current, detectTitle),
-    pipe(
-      children,
-      filter((x: SimplifiedNode) => x),
-      (children: SimplifiedNode[]) => ({
-        title: children.every(isString)
-          ? concatStrings(children)
-          : (children[0] as string),
-      }),
+    pipe(children, (c: SimplifiedNode[]) => {
+      if (c.every(isString)) return { [concatStrings(c)]: null };
+      throw new Error(`Cannot handle title ${JSON.stringify(c)}`);
+    }),
+  ],
+  [pipe(children, isSingleton), pipe(children, head<SimplifiedNode[]>)],
+  [
+    alljuxt(
+      pipe(children, length<SimplifiedNode>, equals(2)),
+      pipe(children, head<SimplifiedNode[]>, isString),
+      pipe(children, second<SimplifiedNode[]>, isArray),
+    ),
+    pipe(children, ([x, y]: SimplifiedNode[]) =>
+      y ? { [x as string]: y } : x,
     ),
   ],
-  // @ts-expect-error too complex inference
-  ...childrenHandlers.map(
-    map((f) =>
-      pipe(
-        children,
-        filter((x: SimplifiedNode) => x),
-        f,
-      ),
+  [pipe(children, empty), () => null],
+  [
+    pipe(children, allmap(isObject)),
+    pipe(children, (x: SimplifiedNode[]) =>
+      (x as SomeObj[]).reduce(combineObjects),
     ),
-  ),
+  ],
+  [pipe(children, allmap(isString)), pipe(children, concatStrings)],
+  [
+    () => true,
+    pipe(children, (y: SimplifiedNode[]) => {
+      // console.log(y);
+      return y;
+      // throw new Error("unhandled");
+    }),
+  ],
 ];
+
+type SomeObj = Record<string, string | string[]>;
+
+const overlappingKeys = pipe(
+  map(Object.keys),
+  intersectBy((x: string) => x),
+);
+
+const combineObjects = (x: SomeObj, y: SomeObj) => {
+  // const overlap: SomeObj = {};
+  // for (const k of overlappingKeys([x, y])) {
+  //   const valX = x[k];
+  //   const valY = y[k];
+  //   if (Array.isArray(valX) || Array.isArray(valY)) return [x, y];
+  //   overlap[k] = [valX, valY];
+  // }
+
+  if (nonempty(overlappingKeys([x, y]))) throw new Error();
+  return { ...x, ...y };
+};
 
 const getChildren = (node: Node) => (isElement(node) ? node.childNodes : []);
 
-export const simplifyHtml = pipe(
+export const simplifyHtml: (x: string) => SimplifiedNode = pipe(
   (x) => parse(x, {}),
   reduceTree(getChildren, cond(handlers)),
 );
-
-export type SimplifiedNode = AnnotatedText | null | string | SimplifiedNode[];
 
 export const findInSimplifiedTree = (
   predicate: (node: SimplifiedNode) => boolean,

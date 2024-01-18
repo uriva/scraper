@@ -1,11 +1,6 @@
 import { assertEquals } from "assert";
 import { equals, pipe, sideEffect } from "gamla";
-import {
-  SimplifiedNode,
-  findInSimplifiedTree,
-  mainList,
-  simplifyHtml,
-} from "./index.ts";
+import { SimplifiedNode, findInSimplifiedTree, simplifyHtml } from "./index.ts";
 
 const writeToFile = <T>(obj: T) =>
   Deno.writeFileSync(
@@ -30,18 +25,20 @@ Deno.test("colon", () => {
   const desiredString =
     "Cal Jacobs : I'm envious of your generation, you know. You guys don't care as much about the rules.";
   assertEquals(
-    findInSimplifiedTree(equals<null | string | SimplifiedNode>(desiredString))(
+    findInSimplifiedTree(equals<SimplifiedNode>(desiredString))(
       simplifyFile("imdb2.html"),
     ),
     desiredString,
   );
 });
 
-Deno.test("duckduck", () => {
-  assertEquals(mainList(simplifyFile("duckduckgo.html"))?.[0], {
-    title: "Snow White and the Seven Dwarfs (1937) - IMDb",
-    url: "www.imdb.com/title/tt0029583/fullcredits",
-    paragraph:
-      "Directed by Writing Credits Cast verified as complete Produced by Walt Disney ... producer (uncredited) Music by Art Direction by Second Unit Director or Assistant Director Sound Department Visual Effects by Camera and Electrical Department Animation Department Costume and Wardrobe Department Editorial Department Music Department Additional Crew",
-  });
+Deno.test("imdb3", () => {
+  const desiredString =
+    "Alejandro Jodorowsky : What is the goal of the life? It's to create yourself a soul. For me, movies are an art... more than an industry. And its the search of the human soul... as painting, as literature, as poetry. Movies are that for me.";
+  assertEquals(
+    findInSimplifiedTree(equals<SimplifiedNode>(desiredString))(
+      simplifyFile("imdb3.html"),
+    ),
+    desiredString,
+  );
 });
