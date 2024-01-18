@@ -20,7 +20,7 @@ import {
   reduceTree,
   replace,
   trimWhitespace,
-} from "https://deno.land/x/gamla@41.0.0/src/index.ts";
+} from "https://deno.land/x/gamla@42.0.0/src/index.ts";
 
 import he from "npm:html-entities";
 import { HTMLElement, Node, NodeType, parse } from "npm:node-html-parser";
