@@ -1,24 +1,21 @@
 import {
   alljuxt,
   allmap,
+  cond,
   empty,
+  equals,
+  findInTree,
   head,
   intersectBy,
+  length,
   map,
   max,
   nonempty,
-  second,
-  trimWhitesapce,
-} from "gamla";
-import {
-  cond,
-  equals,
-  findInTree,
-  length,
   pipe,
   reduce,
   reduceTree,
   replace,
+  second,
   trimWhitespace,
 } from "https://deno.land/x/gamla@42.0.0/src/index.ts";
 
@@ -33,7 +30,7 @@ export type SimplifiedNode =
   | { [x: string]: SimplifiedNode }
   | Array<SimplifiedNode>;
 
-const clean = pipe(he.decode, replace(/\s+/g, " "), trimWhitesapce);
+const clean = pipe(he.decode, replace(/\s+/g, " "), trimWhitespace);
 
 const concatStrings = pipe(
   reduce(
