@@ -1,6 +1,7 @@
 import { assertEquals } from "assert";
 import { equals, pipe, sideEffect } from "gamla";
 import { SimplifiedNode, findInSimplifiedTree, simplifyHtml } from "./index.ts";
+import { mainList } from "./index.ts";
 
 const writeToFile = <T>(obj: T) =>
   Deno.writeFileSync(
@@ -41,4 +42,8 @@ Deno.test("imdb3", () => {
     ),
     desiredString,
   );
+});
+
+Deno.test("headline understanding", () => {
+  assertEquals(mainList(simplifyFile("tvfanatic.html"))?.length, 12);
 });

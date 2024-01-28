@@ -22,12 +22,14 @@ import {
 import he from "npm:html-entities";
 import { HTMLElement, Node, NodeType, parse } from "npm:node-html-parser";
 
+type SimplifiedNodeObject = { [x: string]: SimplifiedNode };
+
 export type SimplifiedNode =
   | null
   | string
   | number
   | boolean
-  | { [x: string]: SimplifiedNode }
+  | SimplifiedNodeObject
   | Array<SimplifiedNode>;
 
 const clean = pipe(he.decode, replace(/\s+/g, " "), trimWhitespace);
@@ -42,7 +44,8 @@ const concatStrings = pipe(
 
 const isArray = Array.isArray;
 
-const isObject = (x: SimplifiedNode) => !isArray(x) && typeof x === "object";
+const isObject = (x: SimplifiedNode): x is SimplifiedNodeObject =>
+  !isArray(x) && x !== null && typeof x === "object";
 
 const isString = (x: SimplifiedNode): x is string => typeof x === "string";
 
@@ -111,6 +114,18 @@ const handlers: PredicateAndHandler[] = [
   ],
   [pipe(children, allmap(isString)), pipe(children, concatStrings)],
   [
+    pipe(
+      children,
+      ([title]) =>
+        isObject(title) &&
+        Object.keys(title).length === 1 &&
+        Object.values(title)[0] === null,
+    ),
+    pipe(children, ([title, ...children]) => ({
+      [Object.keys(title)[0]]: children.length === 1 ? children[0] : children,
+    })),
+  ],
+  [
     () => true,
     pipe(children, (y: SimplifiedNode[]) => {
       // console.log(y);
@@ -161,15 +176,16 @@ export const findInSimplifiedTree = (
   );
 
 export const mainList = reduceTree(
-  (node: SimplifiedNode) => (Array.isArray(node) ? node : []),
+  (node: SimplifiedNode) =>
+    Array.isArray(node) ? node : isObject(node) ? Object.values(node) : [],
   (
     current: SimplifiedNode,
     children: (null | SimplifiedNode[])[],
   ): null | SimplifiedNode[] => {
-    const childrenCandidates = children.filter(Array.isArray);
+    const childArrays = children.filter(Array.isArray);
     const candidates: SimplifiedNode[][] = Array.isArray(current)
-      ? [current, ...childrenCandidates]
-      : childrenCandidates;
+      ? [current, ...childArrays]
+      : childArrays;
     return empty(candidates) ? null : max(length<SimplifiedNode>)(candidates);
   },
 );
