@@ -193,3 +193,29 @@ export const mainList = reduceTree(
       : max((x: Unlabeled) => x.children.length)(candidates);
   },
 );
+
+export const filterPageParts = (predicate: (x: SimplifiedNode) => boolean) =>
+  reduceTree(
+    simplifiedNodeChildren,
+    (current: SimplifiedNode, children: SimplifiedNode[]): SimplifiedNode => {
+      if (!predicate(current)) return { type: "empty" };
+      if (!("children" in current)) return current;
+      return {
+        ...current,
+        children: children.filter((x) => x.type !== "empty"),
+      };
+    },
+  );
+
+export const simplifiedHtmlToString = reduceTree(
+  simplifiedNodeChildren,
+  (current: SimplifiedNode, children: string[]): string => {
+    if (current.type === "labeled")
+      return current.label + "\n" + children.reduce((a, b) => a + "\n" + b, "");
+    if (current.type === "primitive") return current.value;
+    if (current.type === "unlabeled")
+      return children.reduce((a, b) => a + "\n" + b, "");
+    if (current.type === "empty") return "";
+    throw new Error("unhandled type");
+  },
+);
