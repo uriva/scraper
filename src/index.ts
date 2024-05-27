@@ -1,42 +1,35 @@
 import {
-  alljuxt,
   allmap,
   cond,
   empty,
-  equals,
   findInTree,
   head,
-  intersectBy,
-  length,
-  map,
   max,
-  nonempty,
   pipe,
   reduce,
   reduceTree,
   replace,
-  second,
   trimWhitespace,
 } from "https://deno.land/x/gamla@42.0.0/src/index.ts";
 
 import he from "npm:html-entities";
 import { HTMLElement, Node, NodeType, parse } from "npm:node-html-parser";
 
-type SimplifiedNodeObject = { [x: string]: SimplifiedNode };
+type Primitive = { type: "primitive"; value: string };
+type Labeled = { type: "labeled"; label: string; children: SimplifiedNode[] };
+type Unlabeled = { type: "unlabeled"; children: SimplifiedNode[] };
 
 export type SimplifiedNode =
-  | null
-  | string
-  | number
-  | boolean
-  | SimplifiedNodeObject
-  | Array<SimplifiedNode>;
+  | { type: "empty" }
+  | Primitive
+  | Labeled
+  | Unlabeled;
 
 const clean = pipe(he.decode, replace(/\s+/g, " "), trimWhitespace);
 
-const concatStrings = pipe(
+const concatPrimitives = pipe(
   reduce(
-    (s: string, x: SimplifiedNode) => clean(s) + " " + clean(x as string),
+    (s: string, { value }: Primitive) => clean(s) + " " + clean(value),
     () => "",
   ),
   trimWhitespace,
@@ -44,10 +37,12 @@ const concatStrings = pipe(
 
 const isArray = Array.isArray;
 
-const isObject = (x: SimplifiedNode): x is SimplifiedNodeObject =>
-  !isArray(x) && x !== null && typeof x === "object";
+const isLabeled = (x: SimplifiedNode): x is Labeled => x.type === "labeled";
 
-const isString = (x: SimplifiedNode): x is string => typeof x === "string";
+const isUnlabeled = (x: SimplifiedNode): x is Unlabeled =>
+  x.type === "unlabeled";
+
+const isPrimitive = ({ type }: SimplifiedNode) => type === "primitive";
 
 const isElement = (node: Node): node is HTMLElement =>
   node.nodeType === NodeType.ELEMENT_NODE;
@@ -66,7 +61,11 @@ const detectListItem = (node: Node) =>
 const current = (current: Node, _: SimplifiedNode[]) => current;
 
 const children = (_: Node, children: SimplifiedNode[]) =>
-  children.filter((x) => x && (!isArray(x) || nonempty(x)));
+  children.filter(
+    (x) =>
+      x.type !== "empty" &&
+      !(x.type === "unlabeled" && x.children.length === 0),
+  );
 
 type PredicateAndHandler = [
   (current: Node, children: SimplifiedNode[]) => boolean,
@@ -75,85 +74,99 @@ type PredicateAndHandler = [
 
 const isSingleton = <T>(x: T[]) => x.length === 1;
 
+const liftText = pipe(
+  clean,
+  (value: string): SimplifiedNode =>
+    value ? { type: "primitive", value } : { type: "empty" },
+);
+
 const handlers: PredicateAndHandler[] = [
-  [pipe(current, isBadNode), () => null],
+  [pipe(current, isBadNode), () => ({ type: "empty" })],
   [
     pipe(current, isTextNode),
-    pipe(current, ({ innerText }: Node) => clean(innerText)),
+    pipe(current, ({ innerText }: Node) => liftText(innerText)),
   ],
   [
     pipe(current, detectListItem),
-    pipe(children, (children: SimplifiedNode[]) =>
-      isSingleton(children) ? [children[0]] : children,
+    pipe(
+      children,
+      (children: SimplifiedNode[]): SimplifiedNode =>
+        isSingleton(children) ? children[0] : { type: "unlabeled", children },
     ),
   ],
   [
     pipe(current, detectTitle),
     pipe(children, (c: SimplifiedNode[]) => {
-      if (c.every(isString)) return { [concatStrings(c)]: null };
+      if (c.every(isPrimitive))
+        return liftText(concatPrimitives(c as Primitive[]));
       throw new Error(`Cannot handle title ${JSON.stringify(c)}`);
     }),
   ],
   [pipe(children, isSingleton), pipe(children, head<SimplifiedNode[]>)],
   [
-    alljuxt(
-      pipe(children, length<SimplifiedNode>, equals(2)),
-      pipe(children, head<SimplifiedNode[]>, isString),
-      pipe(children, second<SimplifiedNode[]>, isArray),
+    pipe(
+      children,
+      (children: SimplifiedNode[]) =>
+        children.length === 2 &&
+        isPrimitive(children[0]) &&
+        isUnlabeled(children[1]),
     ),
-    pipe(children, ([x, y]: SimplifiedNode[]) =>
-      y ? { [x as string]: y } : x,
+    pipe(
+      children,
+      ([x, y]: [Primitive, Unlabeled]): Labeled => ({
+        type: "labeled",
+        label: x.value,
+        children: [y],
+      }),
     ),
   ],
-  [pipe(children, empty), () => null],
+  [pipe(children, empty), () => ({ type: "empty" })],
   [
-    pipe(children, allmap(isObject)),
+    pipe(children, allmap(isLabeled)),
     pipe(children, (x: SimplifiedNode[]) =>
-      (x as SomeObj[]).reduce(combineObjects),
+      (x as Labeled[]).reduce(combineLabeled, {
+        type: "unlabeled",
+        children: [],
+      } as Unlabeled),
     ),
   ],
-  [pipe(children, allmap(isString)), pipe(children, concatStrings)],
+  [
+    pipe(children, allmap(isPrimitive)),
+    pipe(
+      children,
+      (c: SimplifiedNode[]): SimplifiedNode =>
+        liftText(concatPrimitives(c as Primitive[])),
+    ),
+  ],
   [
     pipe(
       children,
-      ([title]) =>
-        isObject(title) &&
-        Object.keys(title).length === 1 &&
-        Object.values(title)[0] === null,
+      ([title]: SimplifiedNode[]) =>
+        title && isLabeled(title) && title.children.length === 0,
     ),
-    pipe(children, ([title, ...children]) => ({
-      [Object.keys(title)[0]]: children.length === 1 ? children[0] : children,
-    })),
+    pipe(
+      children,
+      ([title, ...children]: SimplifiedNode[]): SimplifiedNode => ({
+        type: "labeled",
+        label: (title as Labeled).label,
+        children,
+      }),
+    ),
   ],
   [
     () => true,
-    pipe(children, (y: SimplifiedNode[]) => {
+    pipe(children, (children: SimplifiedNode[]): SimplifiedNode => {
       // console.log(y);
-      return y;
+      return { type: "unlabeled", children };
       // throw new Error("unhandled");
     }),
   ],
 ];
 
-type SomeObj = Record<string, string | string[]>;
-
-const overlappingKeys = pipe(
-  map(Object.keys),
-  intersectBy((x: string) => x),
-);
-
-const combineObjects = (x: SomeObj, y: SomeObj) => {
-  // const overlap: SomeObj = {};
-  // for (const k of overlappingKeys([x, y])) {
-  //   const valX = x[k];
-  //   const valY = y[k];
-  //   if (Array.isArray(valX) || Array.isArray(valY)) return [x, y];
-  //   overlap[k] = [valX, valY];
-  // }
-
-  if (nonempty(overlappingKeys([x, y]))) throw new Error();
-  return { ...x, ...y };
-};
+const combineLabeled = (x: Unlabeled, y: Labeled) => ({
+  ...x,
+  children: [...x.children, y],
+});
 
 const getChildren = (node: Node) => (isElement(node) ? node.childNodes : []);
 
@@ -162,30 +175,21 @@ export const simplifyHtml: (x: string) => SimplifiedNode = pipe(
   reduceTree(getChildren, cond(handlers)),
 );
 
+const simplifiedNodeChildren = (x: SimplifiedNode): SimplifiedNode[] =>
+  "children" in x ? x.children : [];
+
 export const findInSimplifiedTree = (
   predicate: (node: SimplifiedNode) => boolean,
-) =>
-  findInTree(predicate, (x: SimplifiedNode): SimplifiedNode[] =>
-    Array.isArray(x)
-      ? x
-      : isString(x)
-      ? []
-      : x === null
-      ? []
-      : Object.values(x),
-  );
+) => findInTree(predicate, simplifiedNodeChildren);
 
 export const mainList = reduceTree(
-  (node: SimplifiedNode) =>
-    Array.isArray(node) ? node : isObject(node) ? Object.values(node) : [],
-  (
-    current: SimplifiedNode,
-    children: (null | SimplifiedNode[])[],
-  ): null | SimplifiedNode[] => {
-    const childArrays = children.filter(Array.isArray);
-    const candidates: SimplifiedNode[][] = Array.isArray(current)
-      ? [current, ...childArrays]
-      : childArrays;
-    return empty(candidates) ? null : max(length<SimplifiedNode>)(candidates);
+  simplifiedNodeChildren,
+  (current: SimplifiedNode, children: Unlabeled[]): Unlabeled => {
+    const candidates: Unlabeled[] = isUnlabeled(current)
+      ? [current, ...children]
+      : children;
+    return empty(candidates)
+      ? { type: "unlabeled", children: [] }
+      : max((x: Unlabeled) => x.children.length)(candidates);
   },
 );

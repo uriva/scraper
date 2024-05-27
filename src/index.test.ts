@@ -1,7 +1,11 @@
 import { assertEquals } from "assert";
-import { equals, pipe, sideEffect } from "gamla";
-import { SimplifiedNode, findInSimplifiedTree, simplifyHtml } from "./index.ts";
-import { mainList } from "./index.ts";
+import { pipe, sideEffect } from "gamla";
+import {
+  SimplifiedNode,
+  findInSimplifiedTree,
+  mainList,
+  simplifyHtml,
+} from "./index.ts";
 
 const writeToFile = <T>(obj: T) =>
   Deno.writeFileSync(
@@ -23,27 +27,28 @@ Deno.test("test runs without errors", () => {
 });
 
 Deno.test("colon", () => {
-  const desiredString =
+  const value =
     "Cal Jacobs : I'm envious of your generation, you know. You guys don't care as much about the rules.";
   assertEquals(
-    findInSimplifiedTree(equals<SimplifiedNode>(desiredString))(
-      simplifyFile("imdb2.html"),
-    ),
-    desiredString,
+    findInSimplifiedTree(
+      (x: SimplifiedNode) => x.type === "primitive" && x.value === value,
+    )(simplifyFile("imdb2.html")),
+    { type: "primitive", value },
   );
 });
 
 Deno.test("imdb3", () => {
-  const desiredString =
+  const value =
     "Alejandro Jodorowsky : What is the goal of the life? It's to create yourself a soul. For me, movies are an art... more than an industry. And its the search of the human soul... as painting, as literature, as poetry. Movies are that for me.";
   assertEquals(
-    findInSimplifiedTree(equals<SimplifiedNode>(desiredString))(
+    findInSimplifiedTree((x) => x.type === "primitive" && x.value === value)(
       simplifyFile("imdb3.html"),
     ),
-    desiredString,
+    { type: "primitive", value },
   );
 });
 
 Deno.test("headline understanding", () => {
-  assertEquals(mainList(simplifyFile("tvfanatic.html"))?.length, 12);
+  const main = mainList(simplifyFile("tvfanatic.html"));
+  assertEquals(main.children.length, 12);
 });
