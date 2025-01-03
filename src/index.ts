@@ -12,7 +12,8 @@ import {
   reduceTree,
   replace,
   trimWhitespace,
-} from "https://deno.land/x/gamla@99.0.0/src/index.ts";
+} from "https://deno.land/x/gamla@100.0.0/src/index.ts";
+import { findInTreeExhaustive } from "https://deno.land/x/gamla@100.0.0/src/tree.ts";
 
 import he from "npm:html-entities";
 import {
@@ -208,6 +209,10 @@ const simplifiedNodeChildren = (x: SimplifiedNode): SimplifiedNode[] =>
 export const findInSimplifiedTree = (
   predicate: (node: SimplifiedNode) => boolean,
 ) => findInTree(predicate, simplifiedNodeChildren);
+
+export const findInSimplifiedTreeExhaustive = (
+  predicate: (node: SimplifiedNode) => boolean,
+) => findInTreeExhaustive(predicate, simplifiedNodeChildren);
 
 export const mainList = reduceTree(
   simplifiedNodeChildren,
