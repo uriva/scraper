@@ -1,8 +1,7 @@
 {
   "imports": {
-    "gamla": "https://deno.land/x/gamla@39.0.0/src/index.ts",
-    "std-assert": "https://deno.land/std@0.209.0/assert/mod.ts",
-    "dnt": "https://deno.land/x/dnt@0.39.0/mod.ts"
+    "gamla": "https://deno.land/x/gamla@101.0.0/src/index.ts",
+    "std-assert": "https://deno.land/std@0.209.0/assert/mod.ts"
   },
   "tasks": { "build": "deno run -A build_npm.ts" }
 }

@@ -1,19 +1,22 @@
-import { intersectBy, nonempty, unique, uniqueBy } from "gamla";
 import {
   allmap,
   cond,
   empty,
   findInTree,
+  findInTreeExhaustive,
   hash,
   head,
+  intersectBy,
   max,
+  nonempty,
   pipe,
   reduce,
   reduceTree,
   replace,
   trimWhitespace,
-} from "https://deno.land/x/gamla@100.0.0/src/index.ts";
-import { findInTreeExhaustive } from "https://deno.land/x/gamla@100.0.0/src/tree.ts";
+  unique,
+  uniqueBy,
+} from "gamla";
 
 import he from "npm:html-entities";
 import {

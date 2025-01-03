@@ -16,7 +16,7 @@ const writeToFile = <T>(obj: T) =>
   );
 
 const readText = (file: string) =>
-  new TextDecoder().decode(Deno.readFileSync(`./example-pages/${file}`));
+  Deno.readTextFileSync(`./example-pages/${file}`);
 
 const removeHashSubstructures = (x: SimplifiedNode): SimplifiedNode => {
   if (x.type === "primitive") return { ...x, substructures: [] };
