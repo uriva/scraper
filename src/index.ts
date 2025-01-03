@@ -1,8 +1,10 @@
+import { intersectBy, nonempty, unique, uniqueBy } from "gamla";
 import {
   allmap,
   cond,
   empty,
   findInTree,
+  hash,
   head,
   max,
   pipe,
@@ -10,12 +12,17 @@ import {
   reduceTree,
   replace,
   trimWhitespace,
-} from "https://deno.land/x/gamla@42.0.0/src/index.ts";
+} from "https://deno.land/x/gamla@99.0.0/src/index.ts";
 
 import he from "npm:html-entities";
-import { HTMLElement, Node, NodeType, parse } from "npm:node-html-parser";
+import {
+  type HTMLElement,
+  type Node,
+  NodeType,
+  parse,
+} from "npm:node-html-parser";
 
-type Primitive = { type: "primitive"; value: string };
+type Primitive = { type: "primitive"; value: string; substructures: string[] };
 type Labeled = { type: "labeled"; label: string; children: SimplifiedNode[] };
 type Unlabeled = { type: "unlabeled"; children: SimplifiedNode[] };
 
@@ -27,15 +34,14 @@ export type SimplifiedNode =
 
 const clean = pipe(he.decode, replace(/\s+/g, " "), trimWhitespace);
 
-const concatPrimitives = pipe(
-  reduce(
-    (s: string, { value }: Primitive) => clean(s) + " " + clean(value),
-    () => "",
-  ),
-  trimWhitespace,
+const concatPrimitives = reduce(
+  (s: Primitive, { value, substructures }: Primitive): Primitive => ({
+    type: "primitive",
+    value: trimWhitespace(`${clean(s.value)} ${clean(value)}`),
+    substructures: unique([...s.substructures, ...substructures]),
+  }),
+  () => ({ type: "primitive" as const, value: "", substructures: [] }),
 );
-
-const isArray = Array.isArray;
 
 const isLabeled = (x: SimplifiedNode): x is Labeled => x.type === "labeled";
 
@@ -60,12 +66,17 @@ const detectListItem = (node: Node) =>
 
 const current = (current: Node, _: SimplifiedNode[]) => current;
 
-const children = (_: Node, children: SimplifiedNode[]) =>
-  children.filter(
-    (x) =>
-      x.type !== "empty" &&
-      !(x.type === "unlabeled" && x.children.length === 0),
-  );
+const children = pipe(
+  (_: Node, children: SimplifiedNode[]) =>
+    children.filter(
+      (x) =>
+        x.type !== "empty" &&
+        !(x.type === "unlabeled" && x.children.length === 0),
+    ),
+  uniqueBy((x: SimplifiedNode) =>
+    hash(x.type === "primitive" ? { ...x, substructures: [] } : x, 10)
+  ),
+);
 
 type PredicateAndHandler = [
   (current: Node, children: SimplifiedNode[]) => boolean,
@@ -77,7 +88,9 @@ const isSingleton = <T>(x: T[]) => x.length === 1;
 const liftText = pipe(
   clean,
   (value: string): SimplifiedNode =>
-    value ? { type: "primitive", value } : { type: "empty" },
+    value
+      ? { type: "primitive", value, substructures: [hash(value, 10)] }
+      : { type: "empty" },
 );
 
 const handlers: PredicateAndHandler[] = [
@@ -97,8 +110,7 @@ const handlers: PredicateAndHandler[] = [
   [
     pipe(current, detectTitle),
     pipe(children, (c: SimplifiedNode[]) => {
-      if (c.every(isPrimitive))
-        return liftText(concatPrimitives(c as Primitive[]));
+      if (c.every(isPrimitive)) return concatPrimitives(c as Primitive[]);
       throw new Error(`Cannot handle title ${JSON.stringify(c)}`);
     }),
   ],
@@ -123,19 +135,34 @@ const handlers: PredicateAndHandler[] = [
   [pipe(children, empty), () => ({ type: "empty" })],
   [
     pipe(children, allmap(isLabeled)),
-    pipe(children, (x: SimplifiedNode[]) =>
-      (x as Labeled[]).reduce(combineLabeled, {
-        type: "unlabeled",
-        children: [],
-      } as Unlabeled),
+    pipe(
+      children,
+      (x: SimplifiedNode[]) =>
+        (x as Labeled[]).reduce(combineLabeled, {
+          type: "unlabeled",
+          children: [],
+        } as Unlabeled),
     ),
   ],
   [
     pipe(children, allmap(isPrimitive)),
     pipe(
       children,
-      (c: SimplifiedNode[]): SimplifiedNode =>
-        liftText(concatPrimitives(c as Primitive[])),
+      (c: Primitive[]) => {
+        const commonSubstructures = intersectBy((x: string) => x)(
+          c.map((c) => c.substructures),
+        );
+        if (nonempty(commonSubstructures)) {
+          return {
+            type: "unlabeled",
+            children: c.map((c) => ({
+              ...c,
+              substructures: [],
+            })),
+          } satisfies Unlabeled;
+        }
+        return concatPrimitives(c as Primitive[]);
+      },
     ),
   ],
   [
@@ -210,11 +237,13 @@ export const filterPageParts = (predicate: (x: SimplifiedNode) => boolean) =>
 export const simplifiedHtmlToString = reduceTree(
   simplifiedNodeChildren,
   (current: SimplifiedNode, children: string[]): string => {
-    if (current.type === "labeled")
-      return current.label + "\n" + children.reduce((a, b) => a + "\n" + b, "");
+    if (current.type === "labeled") {
+      return `${current.label}\n${children.reduce((a, b) => `${a}\n${b}`, "")}`;
+    }
     if (current.type === "primitive") return current.value;
-    if (current.type === "unlabeled")
-      return children.reduce((a, b) => a + "\n" + b, "");
+    if (current.type === "unlabeled") {
+      return children.reduce((a, b) => `${a}\n${b}`, "");
+    }
     if (current.type === "empty") return "";
     throw new Error("unhandled type");
   },
