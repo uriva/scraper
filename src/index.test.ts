@@ -109,3 +109,16 @@ Deno.test("smart substructure identification", () => {
     null,
   );
 });
+
+Deno.test("links remain", () => {
+  assertNotEquals(
+    findInSimplifiedTree(
+      (x: SimplifiedNode) =>
+        x.type === "primitive" &&
+        x.value.includes(
+          "/title/tt0944947/?ref_=ttqu_rvi_tt_t_6",
+        ),
+    )(simplifyFile("imdb1.html")),
+    null,
+  );
+});

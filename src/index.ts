@@ -97,7 +97,8 @@ const liftText = pipe(
       : { type: "empty" },
 );
 
-const isAnchorNode = (node: Node) => isElement(node) && node.tagName === "A";
+const isAnchorNodeWithInnerText = (node: Node) =>
+  isElement(node) && node.tagName === "A" && node.innerText.trim() !== "";
 
 const isPictureNode = (node: Node) => isElement(node) && node.tagName === "IMG";
 
@@ -112,7 +113,7 @@ const handlers: PredicateAndHandler[] = [
     pipe(current, (elem: HTMLElement) => liftText(elem.getAttribute("alt"))),
   ],
   [
-    pipe(current, isAnchorNode),
+    pipe(current, isAnchorNodeWithInnerText),
     pipe(
       current,
       (elem: HTMLElement) =>
