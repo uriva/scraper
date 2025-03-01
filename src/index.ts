@@ -97,11 +97,27 @@ const liftText = pipe(
       : { type: "empty" },
 );
 
+const isAnchorNode = (node: Node) => isElement(node) && node.tagName === "A";
+
+const isPictureNode = (node: Node) => isElement(node) && node.tagName === "IMG";
+
 const handlers: PredicateAndHandler[] = [
   [pipe(current, isBadNode), () => ({ type: "empty" })],
   [
     pipe(current, isTextNode),
     pipe(current, ({ innerText }: Node) => liftText(innerText)),
+  ],
+  [
+    pipe(current, isPictureNode),
+    pipe(current, (elem: HTMLElement) => liftText(elem.getAttribute("alt"))),
+  ],
+  [
+    pipe(current, isAnchorNode),
+    pipe(
+      current,
+      (elem: HTMLElement) =>
+        liftText(`[${elem.innerText.trim()}](${elem.getAttribute("href")})`),
+    ),
   ],
   [
     pipe(current, detectListItem),
