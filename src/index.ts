@@ -17,8 +17,7 @@ import {
   unique,
   uniqueBy,
 } from "gamla";
-
-import he from "npm:html-entities";
+import { decode } from "npm:html-entities";
 import {
   type HTMLElement,
   type Node,
@@ -36,7 +35,7 @@ export type SimplifiedNode =
   | Labeled
   | Unlabeled;
 
-const clean = pipe(he.decode, replace(/\s+/g, " "), trimWhitespace);
+const clean = pipe(decode, replace(/\s+/g, " "), trimWhitespace);
 
 const concatPrimitives = reduce(
   (s: Primitive, { value, substructures }: Primitive): Primitive => ({
