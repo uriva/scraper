@@ -213,7 +213,7 @@ const combineLabeled = (x: Unlabeled, y: Labeled) => ({
 
 const getChildren = (node: Node) => [...node.childNodes];
 
-export const simplifyHtml = pipe(
+export const simplifyHtml: (x: string) => SimplifiedNode = pipe(
   (x: string) => new DOMParser().parseFromString(x, "text/html").getRootNode(),
   reduceTree(getChildren, cond(handlers)),
 );
