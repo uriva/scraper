@@ -1,9 +1,9 @@
+import { pipe, sideEffect } from "gamla";
 import {
   assertEquals,
   assertNotEquals,
   assertStringIncludes,
 } from "std-assert";
-import { pipe, sideEffect, sideLog } from "gamla";
 import {
   filterPageParts,
   findInSimplifiedTree,
