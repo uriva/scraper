@@ -1,6 +1,6 @@
 {
   "name": "@uri/simplify-html",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "exports": "./src/index.ts",
   "imports": {
     "gamla": "npm:gamla@124.0.0",

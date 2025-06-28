@@ -3,7 +3,7 @@ import {
   assertNotEquals,
   assertStringIncludes,
 } from "std-assert";
-import { pipe, sideEffect } from "gamla";
+import { pipe, sideEffect, sideLog } from "gamla";
 import {
   filterPageParts,
   findInSimplifiedTree,

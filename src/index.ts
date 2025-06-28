@@ -17,13 +17,8 @@ import {
   unique,
   uniqueBy,
 } from "gamla";
+import { DOMParser, type Element, Node } from "jsr:@b-fuze/deno-dom@0.1.49";
 import { decode } from "npm:html-entities@2.6.0";
-import {
-  type HTMLElement,
-  type Node,
-  NodeType,
-  parse,
-} from "npm:node-html-parser@7.0.1";
 
 type Primitive = { type: "primitive"; value: string; substructures: string[] };
 type Labeled = { type: "labeled"; label: string; children: SimplifiedNode[] };
@@ -53,19 +48,19 @@ const isUnlabeled = (x: SimplifiedNode): x is Unlabeled =>
 
 const isPrimitive = ({ type }: SimplifiedNode) => type === "primitive";
 
-const isElement = (node: Node): node is HTMLElement =>
-  node.nodeType === NodeType.ELEMENT_NODE;
+const isElement = (node: Node): node is Element =>
+  node.nodeType === Node.ELEMENT_NODE;
 
-const isTextNode = (node: Node) => node.nodeType === NodeType.TEXT_NODE;
+const isTextNode = (node: Node) => node.nodeType === Node.TEXT_NODE;
 
 const isBadNode = (node: Node) =>
-  isElement(node) && ["SCRIPT", "STYLE", "NOSCRIPT"].includes(node.tagName);
+  isElement(node) && ["SCRIPT", "STYLE", "NOSCRIPT"].includes(node.nodeName);
 
 const detectTitle = (node: Node) =>
-  isElement(node) && /h\d/i.test(node.tagName);
+  isElement(node) && /h\d/i.test(node.nodeName);
 
 const detectListItem = (node: Node) =>
-  isElement(node) && /(?:[uo])l/i.test(node.tagName);
+  isElement(node) && /(?:[uo])l/i.test(node.nodeName);
 
 const current = (current: Node, _: SimplifiedNode[]) => current;
 
@@ -97,25 +92,26 @@ const liftText = pipe(
 );
 
 const isAnchorNodeWithInnerText = (node: Node) =>
-  isElement(node) && node.tagName === "A" && node.innerText.trim() !== "";
+  isElement(node) && node.nodeName === "A" && node.innerText.trim() !== "";
 
-const isPictureNode = (node: Node) => isElement(node) && node.tagName === "IMG";
+const isPictureNode = (node: Node) =>
+  isElement(node) && node.nodeName === "IMG";
 
 const handlers: PredicateAndHandler[] = [
   [pipe(current, isBadNode), () => ({ type: "empty" })],
   [
     pipe(current, isTextNode),
-    pipe(current, ({ innerText }: Node) => liftText(innerText)),
+    pipe(current, ({ textContent }: Node) => liftText(textContent)),
   ],
   [
     pipe(current, isPictureNode),
-    pipe(current, (elem: HTMLElement) => liftText(elem.getAttribute("alt"))),
+    pipe(current, (elem: Element) => liftText(elem.getAttribute("alt"))),
   ],
   [
     pipe(current, isAnchorNodeWithInnerText),
     pipe(
       current,
-      (elem: HTMLElement) =>
+      (elem: Element) =>
         liftText(`[${elem.innerText.trim()}](${elem.getAttribute("href")})`),
     ),
   ],
@@ -215,10 +211,10 @@ const combineLabeled = (x: Unlabeled, y: Labeled) => ({
   children: [...x.children, y],
 });
 
-const getChildren = (node: Node) => (isElement(node) ? node.childNodes : []);
+const getChildren = (node: Node) => [...node.childNodes];
 
-export const simplifyHtml: (x: string) => SimplifiedNode = pipe(
-  (x) => parse(x, {}),
+export const simplifyHtml = pipe(
+  (x) => new DOMParser().parseFromString(x, "text/html").getRootNode(),
   reduceTree(getChildren, cond(handlers)),
 );
 
