@@ -1,7 +1,9 @@
 {
+  "name": "@uri/simplify-html",
+  "version": "0.0.1",
+  "exports": "./src/index.ts",
   "imports": {
-    "gamla": "https://deno.land/x/gamla@101.0.0/src/index.ts",
-    "std-assert": "https://deno.land/std@0.209.0/assert/mod.ts"
-  },
-  "tasks": { "build": "deno run -A build_npm.ts" }
+    "gamla": "npm:gamla@124.0.0",
+    "std-assert": "jsr:@std/assert"
+  }
 }

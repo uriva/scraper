@@ -17,13 +17,13 @@ import {
   unique,
   uniqueBy,
 } from "gamla";
-import { decode } from "npm:html-entities";
+import { decode } from "npm:html-entities@2.6.0";
 import {
   type HTMLElement,
   type Node,
   NodeType,
   parse,
-} from "npm:node-html-parser";
+} from "npm:node-html-parser@7.0.1";
 
 type Primitive = { type: "primitive"; value: string; substructures: string[] };
 type Labeled = { type: "labeled"; label: string; children: SimplifiedNode[] };
@@ -227,13 +227,16 @@ const simplifiedNodeChildren = (x: SimplifiedNode): SimplifiedNode[] =>
 
 export const findInSimplifiedTree = (
   predicate: (node: SimplifiedNode) => boolean,
-) => findInTree(predicate, simplifiedNodeChildren);
+): (t: SimplifiedNode) => SimplifiedNode | null =>
+  findInTree(predicate, simplifiedNodeChildren);
 
-export const findInSimplifiedTreeExhaustive = (
+export const findInSimplifiedTreeExhaustive: (
+  predicate: (node: SimplifiedNode) => boolean,
+) => (t: SimplifiedNode) => SimplifiedNode[] = (
   predicate: (node: SimplifiedNode) => boolean,
 ) => findInTreeExhaustive(predicate, simplifiedNodeChildren);
 
-export const mainList = reduceTree(
+export const mainList: (tree: SimplifiedNode) => Unlabeled = reduceTree(
   simplifiedNodeChildren,
   (current: SimplifiedNode, children: Unlabeled[]): Unlabeled => {
     const candidates: Unlabeled[] = isUnlabeled(current)
@@ -245,7 +248,11 @@ export const mainList = reduceTree(
   },
 );
 
-export const filterPageParts = (predicate: (x: SimplifiedNode) => boolean) =>
+export const filterPageParts: (
+  predicate: (x: SimplifiedNode) => boolean,
+) => (tree: SimplifiedNode) => SimplifiedNode = (
+  predicate: (x: SimplifiedNode) => boolean,
+) =>
   reduceTree(
     simplifiedNodeChildren,
     (current: SimplifiedNode, children: SimplifiedNode[]): SimplifiedNode => {
@@ -258,17 +265,20 @@ export const filterPageParts = (predicate: (x: SimplifiedNode) => boolean) =>
     },
   );
 
-export const simplifiedHtmlToString = reduceTree(
-  simplifiedNodeChildren,
-  (current: SimplifiedNode, children: string[]): string => {
-    if (current.type === "labeled") {
-      return `${current.label}\n${children.reduce((a, b) => `${a}\n${b}`, "")}`;
-    }
-    if (current.type === "primitive") return current.value;
-    if (current.type === "unlabeled") {
-      return children.reduce((a, b) => `${a}\n${b}`, "");
-    }
-    if (current.type === "empty") return "";
-    throw new Error("unhandled type");
-  },
-);
+export const simplifiedHtmlToString: (tree: SimplifiedNode) => string =
+  reduceTree(
+    simplifiedNodeChildren,
+    (current: SimplifiedNode, children: string[]): string => {
+      if (current.type === "labeled") {
+        return `${current.label}\n${
+          children.reduce((a, b) => `${a}\n${b}`, "")
+        }`;
+      }
+      if (current.type === "primitive") return current.value;
+      if (current.type === "unlabeled") {
+        return children.reduce((a, b) => `${a}\n${b}`, "");
+      }
+      if (current.type === "empty") return "";
+      throw new Error("unhandled type");
+    },
+  );
